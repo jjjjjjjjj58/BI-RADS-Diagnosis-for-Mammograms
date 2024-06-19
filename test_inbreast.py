@@ -125,7 +125,7 @@ def read_split_data(root = r'D:\pycharm project\dataset\cdd-cesm\ALL_DATA', val_
 def main(args, jiaocha=None,weights=None):
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 
-    train_images_path, train_images_label, val_images_path, val_images_label = read_split_data(jiaocha=jiaocha)
+    train_images_path, train_images_label, val_images_path, val_images_label = read_split_data()
 
     # img_size = 226
 
