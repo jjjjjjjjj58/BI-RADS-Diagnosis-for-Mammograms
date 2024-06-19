@@ -1,6 +1,3 @@
-"""
-该脚本能够把验证集中预测错误的图片挑选出来，并记录在record.txt中
-"""
 import os
 import argparse
 
