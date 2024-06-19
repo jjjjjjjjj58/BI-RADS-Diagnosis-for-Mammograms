@@ -1,6 +1,3 @@
-"""
-该脚本能够把验证集中预测错误的图片挑选出来，并记录在record.txt中
-"""
 import os
 import json
 import argparse
@@ -135,7 +132,7 @@ def main(args, jiaocha=None,weights=None):
         "val": transforms.Compose([transforms.Resize([int(img_size_h * 1.04),int(img_size * 1.04)]),
                                    transforms.CenterCrop([img_size_h,img_size]),
                                    transforms.ToTensor(),
-                                   transforms.Normalize([0.273], [0.218])])}
+                                   transforms.Normalize([0.397], [0.257])])}
 
     # 实例化验证数据集
     val_dataset = MyDataSet(images_path=val_images_path,
@@ -329,7 +326,7 @@ def pinggu(a, b, c):
     acc_pred3 = torch.zeros_like(pred3[:, 0])
     acc_pred35 = torch.zeros_like(pred3[:, 1])
 
-    acc_pred20[pred2 > -5] = 1
+    acc_pred20[pred2 > -1.5] = 1
     acc_pred3[pred3[:, 0] > 0] = 1
     acc_pred35[pred3[:, 1] > 0] = 1
     #######
@@ -644,7 +641,7 @@ if __name__ == '__main__':
     a2=torch.zeros([1,9])
     b2=torch.zeros([1,4]).to(device)
     c2=torch.zeros([1,7]).to(device)
-    a,b,c=main(opt,jiaocha=0,weights=r'D:\pycharm project\swin2\swin_transformer\plt\inbreast\model-67.pth')
+    a,b,c=main(opt,jiaocha=0,weights=r'C:\Users\Administrator\Desktop\效果记录2\DM10000\final\model\model_inbreast.pth')
     a2=torch.cat([a2,a],dim=0)
     b2=torch.cat([b2,b],dim=0)
     c2=torch.cat([c2,c],dim=0)
