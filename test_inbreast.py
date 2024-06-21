@@ -10,18 +10,108 @@ import numpy as np
 from my_dataset import MyDataSet
 
 import csv
+from sklearn.utils import resample
 
-from scipy.stats import norm
-def AUC_CI(auc, label, alpha=0.05):
-    label = np.array(label)  # 防止label不是array类型
-    n1, n2 = np.sum(label == 1), np.sum(label == 0)
-    q1 = auc / (2 - auc)
-    q2 = (2 * auc ** 2) / (1 + auc)
-    se = np.sqrt((auc * (1 - auc) + (n1 - 1) * (q1 - auc ** 2) + (n2 - 1) * (q2 - auc ** 2)) / (n1 * n2))
-    confidence_level = 1 - alpha
-    z_lower, z_upper = norm.interval(confidence_level)
-    lowerb, upperb = auc + z_lower * se, auc + z_upper * se
-    return (lowerb, upperb)
+def compute_auc_ci(y_true, y_scores, n_bootstraps=1000, ci=0.95):
+    """
+    Compute the AUC and its confidence interval using bootstrap.
+
+    Parameters:
+    y_true (torch.Tensor): True binary labels as a tensor.
+    y_scores (torch.Tensor): Target scores as a tensor.
+    n_bootstraps (int): Number of bootstrap samples to use.
+    ci (float): Confidence interval (0 < ci < 1).
+
+    Returns:
+    auc_mean (float): Mean AUC.
+    auc_lower (float): Lower bound of the confidence interval.
+    auc_upper (float): Upper bound of the confidence interval.
+    """
+    # Convert tensors to numpy arrays
+    y_true_np = y_true.cpu().numpy()
+    y_scores_np = y_scores.cpu().numpy()
+
+    # Array to store the bootstrap samples
+    bootstrapped_aucs = []
+
+    # Set a random seed for reproducibility
+    np.random.seed(42)
+
+    # Bootstrap sampling
+    for i in range(n_bootstraps):
+        # Sample with replacement
+        indices = resample(np.arange(len(y_true_np)), replace=True, n_samples=len(y_true_np))
+        if len(np.unique(y_true_np[indices])) < 2:
+            # If the sample has only one class, skip the iteration
+            continue
+        score = roc_auc_score(y_true_np[indices], y_scores_np[indices])
+        bootstrapped_aucs.append(score)
+
+    # Compute the mean AUC
+    auc_mean = np.mean(bootstrapped_aucs)
+
+    # Compute the lower and upper bounds of the confidence interval
+    sorted_aucs = np.sort(bootstrapped_aucs)
+    lower_bound = np.percentile(sorted_aucs, (1 - ci) / 2 * 100)
+    upper_bound = np.percentile(sorted_aucs, (1 + ci) / 2 * 100)
+
+    return auc_mean, lower_bound, upper_bound
+
+from sklearn.preprocessing import label_binarize
+
+
+def compute_multiclass_auc_ci(y_true, y_scores, n_classes=4, n_bootstraps=1000, ci=0.95):
+    """
+    Compute the aggregate AUC and its confidence interval for multi-class classification using bootstrap.
+
+    Parameters:
+    y_true (torch.Tensor): True labels as a tensor (shape: [n_samples]).
+    y_scores (torch.Tensor): Target scores as a tensor (shape: [n_samples, n_classes]).
+    n_classes (int): Number of classes.
+    n_bootstraps (int): Number of bootstrap samples to use.
+    ci (float): Confidence interval (0 < ci < 1).
+
+    Returns:
+    auc_mean (float): Mean aggregate AUC.
+    auc_lower (float): Lower bound of the confidence interval.
+    auc_upper (float): Upper bound of the confidence interval.
+    """
+    # Convert tensors to numpy arrays
+    y_true_np = y_true.cpu().numpy()
+    y_scores_np = y_scores.cpu().numpy()
+
+    # Binarize the output for multiclass AUC calculation
+    y_true_binarized = label_binarize(y_true_np, classes=np.arange(n_classes))
+
+    # Array to store bootstrap AUCs
+    bootstrapped_aucs = []
+
+    # Set a random seed for reproducibility
+    np.random.seed(42)
+
+    # Bootstrap sampling
+    for i in range(n_bootstraps):
+        # Sample with replacement
+        indices = resample(np.arange(len(y_true_np)), replace=True, n_samples=len(y_true_np))
+
+        # Calculate the micro-average ROC AUC score
+        try:
+            auc_score = roc_auc_score(y_true_binarized[indices], y_scores_np[indices], average='micro',
+                                      multi_class='ovr')
+            bootstrapped_aucs.append(auc_score)
+        except ValueError:
+            # If we encounter an issue due to lack of positive or negative examples, skip this iteration
+            continue
+
+    # Compute the mean AUC
+    auc_mean = np.mean(bootstrapped_aucs)
+
+    # Compute the lower and upper bounds of the confidence interval
+    sorted_aucs = np.sort(bootstrapped_aucs)
+    lower_bound = np.percentile(sorted_aucs, (1 - ci) / 2 * 100)
+    upper_bound = np.percentile(sorted_aucs, (1 + ci) / 2 * 100)
+
+    return auc_mean, lower_bound, upper_bound
 
 def read_split_data(root = r'D:\pycharm project\dataset\cdd-cesm\ALL_DATA', val_rate: float = 0.1):
 
@@ -280,9 +370,15 @@ def pinggu(a, b, c):
     plt.savefig('plt/findings.jpg'%(),dpi=300)
     plt.close()
 
-    print('AD auc %0.3f'% roc_auc2,AUC_CI(roc_auc2, labels2.cpu()))
-    print('CALC auc %0.3f'% roc_auc310,AUC_CI(roc_auc310, labels31.cpu()))
-    print('MASS auc %0.3f' % roc_auc320, AUC_CI(roc_auc320, labels32.cpu()))
+    print('AD auc %0.3f'% roc_auc2)
+    print('CALC auc %0.3f'% roc_auc310)
+    print('MASS auc %0.3f' % roc_auc320)
+
+    print(compute_auc_ci(labels2.cpu(), pred2.cpu()))
+    print(compute_auc_ci(labels31.cpu(), pred31.cpu()))
+    print(compute_auc_ci(labels32.cpu(), pred32.cpu()))
+    print(compute_multiclass_auc_ci(torch.tensor(labels41).cpu(), pred4.cpu()))
+
     plt.figure()
     plt.title('Receiver Operating Characteristic',fontsize=14)
     # plt.rcParams['figure.figsize'] = (30.0, 30.0)
@@ -314,7 +410,7 @@ def pinggu(a, b, c):
     plt.grid(True)
     plt.savefig('plt/midu.jpg'%(),dpi=300)
     plt.close()
-    print('MIDU auc %0.3f'% roc_auc_4,AUC_CI(roc_auc_4, labels41))
+    print('MIDU auc %0.3f'% roc_auc_4)
 
 
 
@@ -592,7 +688,8 @@ def pinggu(a, b, c):
     plt.plot(fpr_a, tpr_a,  color='c', linestyle='dashed', linewidth=2, markerfacecolor='none',
              label=u'macro-average ROC curve (AUC = %0.2f)' % roc_auc_a)
 
-    print('bi-rads auc %0.3f'% roc_auc_i,AUC_CI(roc_auc_i, labels_roc))
+    print('bi-rads auc %0.3f'% roc_auc_i)
+    print(compute_auc_ci(torch.tensor(labels_roc), torch.tensor(pre_roc)))
 
     plt.legend(loc='lower right',prop = {'size':14})
     plt.plot([0, 1], [0, 1], 'k--')
